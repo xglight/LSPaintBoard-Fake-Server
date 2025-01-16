@@ -230,7 +230,7 @@
 
         function connectWs() {
             try {
-                ws = new WebSocket('ws://localhost:2380');
+                ws = new WebSocket('ws://10.0.3.113:2380'); // 更改 websocket 地址
                 ws.binaryType = "arraybuffer";
 
                 ws.onopen = function () {

@@ -169,6 +169,7 @@ class WebSocketServer:
 
     async def start(self):
         logging.info("Start WebSocket server at %s:%d", self.host, self.port)
+        logging.info("WebSocket url: ws://%s:%d", self.host, self.port)
 
         asyncio.create_task(self.broadcast())
         
