@@ -1,0 +1,5 @@
+{
+    "time_limit": 1000,
+    "port": 2380,
+    "host": "localhost"
+}
