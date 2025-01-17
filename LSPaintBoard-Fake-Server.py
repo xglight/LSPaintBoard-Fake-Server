@@ -1,4 +1,8 @@
 import asyncio
+from os import system
+import sys
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
 import websockets
 import logging
 import colorlog
@@ -6,6 +10,12 @@ import struct
 import time
 import json
 import argparse
+import threading
+import uvicorn
+
+height = 600
+width = 1000
+board = {}
 
 class WebSocketServer:
 
@@ -57,6 +67,26 @@ class WebSocketServer:
                         self.connected_clients.remove(websocket)
             await asyncio.sleep(0.2)
 
+    async def ping(self):
+        while True:
+            if len(self.connected_clients) > 0:
+                logging.debug("Send ping to all clients")
+                for websocket in self.connected_clients:
+                    self.ping_check[websocket] = 0
+                asyncio.create_task(self.append_data(0,bytearray([0xfc])))
+                self.ping_time = time.time()
+            await asyncio.sleep(10)
+    
+    async def check_ping(self):
+        while True:
+            if len(self.connected_clients) > 0 and time.time() - self.ping_time > 3:
+                for websocket in self.connected_clients:
+                    if self.ping_check[websocket] == 0:
+                        logging.warning("WebSocket %s ping timeout, close it", websocket)
+                        await websocket.send("1001 Ping timeout".encode())
+                        await websocket.close()
+            await asyncio.sleep(2)
+            
     
     def uint_to_bytes(self,uint,bytes):
         uint = int(uint)
@@ -90,19 +120,22 @@ class WebSocketServer:
                         await websocket.close()
                         self.connected_clients.remove(websocket)
                         break
-                    x = struct.unpack_from('<H', message, ls)[0]
-                    y = struct.unpack_from('<H', message, ls+2)[0]
-                    r = struct.unpack_from('B', message, ls+4)[0]
-                    g = struct.unpack_from('B', message, ls+5)[0]
-                    b = struct.unpack_from('B', message, ls+6)[0]
-                    uid0 = struct.unpack_from('B', message, ls+7)[0]
-                    uid1 = struct.unpack_from('B', message, ls+8)[0]
-                    uid2 = struct.unpack_from('B', message, ls+9)[0]
-                    uid = (uid0 << 16) | (uid1 << 8) | uid2
-                    high, low = struct.unpack_from('<QQ', message,ls+10)
-                    token = (high << 64) | low
-                    id = struct.unpack_from('<I', message, ls+18)[0]
-                    ls += 26
+                    x = (message[ls+1] << 8) | message[ls]
+                    y = (message[ls+3] << 8) | message[ls+2]
+                    r = message[ls+4]
+                    g = message[ls+5]
+                    b = message[ls+6]
+
+                    uid = (message[ls+9] << 16) | (message[ls+8] << 8) | message[ls+7]
+
+                    token_start = ls+10
+                    token = ''.join(f'{byte:02x}' for byte in message[token_start:-4])
+
+                    # 解析 id
+                    id = (message[ls+29] <<24) | (message[ls+28] << 16) | (message[ls+27] << 8) | message[ls+26]
+                    
+                    ls += 30
+                    
                     logging.debug(f"Received draw command: x={x}, y={y}, r={r}, g={g}, b={b}, uid={uid}, token={token}, id={id}")
 
                     if token in self.token_used_time:
@@ -117,6 +150,7 @@ class WebSocketServer:
                             continue
                         else:
                             logging.info(f"Paint ({r}, {g}, {b}) at ({x}, {y})")
+                            board[(y,x)] = (r,g,b)
                             sendBuf = bytearray([
                                 0xfa,
                                 *self.uint_to_bytes(x,2),
@@ -133,6 +167,7 @@ class WebSocketServer:
                             self.token_used_time[token] = time.time()
                     else:
                         logging.info(f"Paint ({r}, {g}, {b}) at ({x}, {y})")
+                        board[(y,x)] = (r,g,b)
                         sendBuf = bytearray([
                             0xfa,
                             *self.uint_to_bytes(x,2),
@@ -147,6 +182,8 @@ class WebSocketServer:
                             ])
                         asyncio.create_task(self.append_data(client_id,sendBuf))
                         self.token_used_time[token] = time.time()
+                elif type == 0xfb:
+                    self.ping_check[websocket] = 1
 
 
     async def send_data(self,websocket,id):
@@ -154,7 +191,7 @@ class WebSocketServer:
         while True:
             # 检查是否有包需要发送，以及 WebSocket 连接是否已打开
             if self.total_size[id] > 0:
-                logging.debug("Start sending data,len(chunks): %d", len(self.msg_data[id]))
+                logging.debug("Start sending data %d,len(chunks): %d",id, len(self.msg_data[id]))
                 try:
                     await websocket.send(self.get_merage_data(id))
                 except websockets.exceptions.ConnectionClosedError:
@@ -172,6 +209,8 @@ class WebSocketServer:
         logging.info("WebSocket url: ws://%s:%d", self.host, self.port)
 
         asyncio.create_task(self.broadcast())
+        asyncio.create_task(self.ping())
+        asyncio.create_task(self.check_ping())
         
         async with websockets.serve(self.handle_connection, self.host, self.port):
             await asyncio.Future()
@@ -209,31 +248,48 @@ def get_logger(level=logging.INFO):
 time_limit = 30000
 port = 2380
 host = "localhost"
+apihost = "localhost"
+apiport = 2381
 
 def read_config():
     global time_limit
     global port
     global host
+    global apihost
+    global apiport
     try:
         with open("config.json", "r") as f:
             config = json.load(f)
-            time_limit = config["time_limit"]
-            port = config["port"]
-            host = config["host"]
+
+            # server
+            time_limit = config["server"]["time_limit"]
+            port = config["server"]["port"]
+            host = config["server"]["host"]
+
+            # api
+
+            apihost = config["api"]["host"]
+            apiport = config["api"]["port"]
         logging.info("Read config: time_limit=%d, port=%d, host=%s", time_limit, port, host)
     except Exception as e:
         logging.error("Error occurred when reading config: %s", e)
 
 def parse_args():
+    if len(sys.argv) < 2:
+        return
     global time_limit
     global port
     global host
+    global apihost
+    global apiport
 
     parser = argparse.ArgumentParser(description="LSPaintBoard-Fake-Server")
 
     parser.add_argument('--time_limit', type=int, default=30000, help='Token time limit in milliseconds')
     parser.add_argument('--port', type=int, default=2380, help='Server port')
     parser.add_argument('--host', type=str, default="localhost", help='Server host')
+    parser.add_argument('--apihost', type=str, default="localhost", help='API host')
+    parser.add_argument('--apiport', type=int, default=2381, help='API port')
 
     args = parser.parse_args()
     
@@ -243,15 +299,75 @@ def parse_args():
         port = args.port
     if args.host is not None:
         host = args.host
-    
+    if args.apihost is not None:
+        apihost = args.apihost
+    if args.apiport is not None:
+        apiport = args.apiport
+
     with open("config.json", "w") as f:
-            json.dump({"time_limit": time_limit, "port": port, "host": host}, f)
+        config = {
+            "server":{
+                "time_limit": time_limit,
+                "port": port,
+                "host": host,
+            },
+            "api":{
+                "host": apihost,
+                "port": apiport
+            }
+        }
+        json.dump(config, f)
+        logging.info("Write config: time_limit=%d, port=%d, host=%s", time_limit, port, host)
+    
+class BoardApi():
+    def __init__(self,host = "localhost", port = 2380):
+        self.host = host
+        self.port = port
+        self.app = FastAPI()
+    
+    def start(self):
+        logging.info("Start API server at %s:%d", self.host, self.port)
+        logging.info("API url: http://%s:%d/getboard", self.host, self.port)
+
+        @self.app.get('/getboard')
+        def get_board():
+            global board
+            global height
+            global width
+
+            byteArray = bytearray(height * width * 3)
+    
+            for y in range(0,height):
+                for x in range(0,width):
+                    r, g, b = board.get((y,x), (0,0,0))
+                    byteArray[y * width * 3 + x * 3] = r
+                    byteArray[y * width * 3 + x * 3 + 1] = g
+                    byteArray[y * width * 3 + x * 3 + 2] = b
+
+            byteArray = bytes(byteArray)
+            
+            return StreamingResponse(content=iter([byteArray]), media_type="application/octet-stream")
+        
+        threading.Thread(target=self.run_uvicorn, daemon=True).start()
+
+    def run_uvicorn(self):
+        uvicorn.run(self.app, host=self.host, port=self.port)
+
+        
 
 if __name__ == "__main__":
     logging = get_logger(logging.INFO)
-
-    parse_args()
+    
     read_config()
+    parse_args()
+
+    for y in range(0,height):
+        for x in range(0,width):
+            board[(y,x)] = (0,0,0)
+
+    boardapi = BoardApi(apihost, apiport)
+    boardapi.start()
+
 
     server = WebSocketServer(port=port, host=host, time_limit=time_limit)
     asyncio.run(server.start())

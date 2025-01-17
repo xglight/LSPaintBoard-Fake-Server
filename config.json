@@ -1,1 +1,11 @@
-{"time_limit": 30000, "port": 2380, "host": "localhost"}
+{
+    "server": {
+        "time_limit": 0,
+        "port": 2380,
+        "host": "localhost"
+    },
+    "api": {
+        "host": "localhost",
+        "port": 4796
+    }
+}

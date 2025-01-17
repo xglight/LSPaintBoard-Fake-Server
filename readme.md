@@ -8,7 +8,8 @@ LSPaintBoard 的伪服务器，用于模拟 LSPaintBoard 客户端与服务器�
 
 ## 说明
 
-LSPaintBoard-Fake-Server 并未实现 IP 链接数限制。
+1. LSPaintBoard-Fake-Server 并未实现 IP 链接数限制。
+2. 全部使用 http 协议，不支持 https。
 
 ## 使用
 
@@ -18,25 +19,28 @@ LSPaintBoard-Fake-Server 并未实现 IP 链接数限制。
 .\LSPaintBoard-Fake-Server.exe
 ```
 
-可指定参数：
-
-|    参数    |  类型  |  默认值   |      说明      |
-| :--------: | :----: | :-------: | :------------: |
-|    port    |  int   |   2380    |     端口号     |
-|    host    | string | localhost |     主机名     |
-| time_limit |  int   |   30000   | token 冷却时间 |
-
-调用实例：
-
-```bash
-.\LSPaintBoard-Fake-Server.exe --port 2380 --host localhost --time_limit 30000
-```
-
 帮助：
-
 ```bash
 .\LSPaintBoard-Fake-Server.exe --help
 ```
+
+## 参数
+
+可以在 `config.json` 文件中编辑，也可以使用命令行传参启动。
+
+### server
+
+|    参数    | 类型  |  默认值   |      说明      |
+| :--------: | :---: | :-------: | :------------: |
+|    port    |  int  |   2380    |   服务器端口   |
+|    host    |  str  | localhost |   服务器地址   |
+| time_limit |  int  |     0     | token 冷却时间 |
+
+### api
+| 参数  | 类型  |  默认值   |     说明      |
+| :---: | :---: | :-------: | :-----------: |
+| host  |  str  | localhost | API服务器地址 |
+| port  |  int  |   4796    | API服务器端口 |
 
 ## 手动编译
 
