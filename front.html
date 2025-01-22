@@ -129,7 +129,7 @@
         scale = 5;
         dragged = 0;
         lasttime = 0;
-        timelimit = 30000;
+        timelimit = 0; // 更改 30s 冷却时间
         activityStartTime = 1735646400;
         activityEndTime = 1735740000;
         nowintevel = 0;
@@ -230,7 +230,7 @@
 
         function connectWs() {
             try {
-                ws = new WebSocket('ws://10.0.3.113:2380'); // 更改 websocket 地址
+                ws = new WebSocket('ws://localhost:2380'); // 更改 websocket 地址
                 ws.binaryType = "arraybuffer";
 
                 ws.onopen = function () {
@@ -511,7 +511,7 @@
         function initialPaint() {
             console.log(0)
             var oReq = new XMLHttpRequest();
-            oReq.open("GET", "http://10.0.3.113:4796/getboard");
+            oReq.open("GET", "http://localhost:4796/getboard"); // 更改 API 地址
             oReq.responseType = "arraybuffer";
 
             oReq.onload = function (oEvent) {

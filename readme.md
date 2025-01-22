@@ -24,6 +24,8 @@ LSPaintBoard 的伪服务器，用于模拟 LSPaintBoard 客户端与服务器�
 .\LSPaintBoard-Fake-Server.exe --help
 ```
 
+如果需要前端，请自行更改 `front.html` 中 line 132、233、514 的参数，并使用浏览器打开。
+
 ## 参数
 
 可以在 `config.json` 文件中编辑，也可以使用命令行传参启动。

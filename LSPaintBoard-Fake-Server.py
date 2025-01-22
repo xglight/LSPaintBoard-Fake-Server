@@ -205,6 +205,7 @@ class WebSocketServer:
 
 
     async def start(self):
+        logging.info("Time limit: %d", self.time_limit)
         logging.info("Start WebSocket server at %s:%d", self.host, self.port)
         logging.info("WebSocket url: ws://%s:%d", self.host, self.port)
 
