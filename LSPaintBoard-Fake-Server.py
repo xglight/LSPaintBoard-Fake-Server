@@ -382,7 +382,7 @@ if __name__ == "__main__":
 
     for y in range(0,height):
         for x in range(0,width):
-            board[(y,x)] = (255,255,255)
+            board[(y,x)] = (221,221,221)
 
     boardapi = BoardApi(apihost, apiport,origins)
     boardapi.start()
