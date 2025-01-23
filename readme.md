@@ -39,10 +39,11 @@ LSPaintBoard 的伪服务器，用于模拟 LSPaintBoard 客户端与服务器�
 | time_limit |  int  |     0     | token 冷却时间 |
 
 ### api
-| 参数  | 类型  |  默认值   |     说明      |
-| :---: | :---: | :-------: | :-----------: |
-| host  |  str  | localhost | API服务器地址 |
-| port  |  int  |   4796    | API服务器端口 |
+|  参数   |   类型   |  默认值   |               说明                |
+| :-----: | :------: | :-------: | :-------------------------------: |
+|  host   |   str    | localhost |           API服务器地址           |
+|  port   |   int    |   4796    |           API服务器端口           |
+| origins | string[] |    []     | 允许请求 API 的前段（请带上端口） |
 
 ## 手动编译
 

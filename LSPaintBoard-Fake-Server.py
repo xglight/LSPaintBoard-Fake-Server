@@ -12,10 +12,12 @@ import json
 import argparse
 import threading
 import uvicorn
+from fastapi.middleware.cors import CORSMiddleware
 
 height = 600
 width = 1000
 board = {}
+origins = []
 
 class WebSocketServer:
 
@@ -258,6 +260,7 @@ def read_config():
     global host
     global apihost
     global apiport
+    global origins
     try:
         with open("config.json", "r") as f:
             config = json.load(f)
@@ -271,6 +274,7 @@ def read_config():
 
             apihost = config["api"]["host"]
             apiport = config["api"]["port"]
+            origins = config["api"]["origins"]
         logging.info("Read config: time_limit=%d, port=%d, host=%s", time_limit, port, host)
     except Exception as e:
         logging.error("Error occurred when reading config: %s", e)
@@ -321,14 +325,28 @@ def parse_args():
         logging.info("Write config: time_limit=%d, port=%d, host=%s", time_limit, port, host)
     
 class BoardApi():
-    def __init__(self,host = "localhost", port = 2380):
+    def __init__(self,host = "localhost", port = 2380,origins = []):
         self.host = host
         self.port = port
         self.app = FastAPI()
+        self.origins = origins
     
     def start(self):
         logging.info("Start API server at %s:%d", self.host, self.port)
+        logging.info("With allowed IP address:")
+        logging.info("------------")
+        for origin in self.origins:
+            logging.info(origin)
+        logging.info("------------")
         logging.info("API url: http://%s:%d/getboard", self.host, self.port)
+
+        self.app.add_middleware(
+            CORSMiddleware,
+            allow_origins=self.origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
         @self.app.get('/getboard')
         def get_board():
@@ -364,11 +382,10 @@ if __name__ == "__main__":
 
     for y in range(0,height):
         for x in range(0,width):
-            board[(y,x)] = (0,0,0)
+            board[(y,x)] = (255,255,255)
 
-    boardapi = BoardApi(apihost, apiport)
+    boardapi = BoardApi(apihost, apiport,origins)
     boardapi.start()
-
 
     server = WebSocketServer(port=port, host=host, time_limit=time_limit)
     asyncio.run(server.start())
